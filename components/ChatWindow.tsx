@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Paperclip, Smile, Image as ImageIcon, MoreVertical, Phone, Video, X, Minimize2 } from "lucide-react";
 import { socket } from "@/app/socket";
 
+
 interface Message {
     id: number;
     text: string;
@@ -41,7 +42,8 @@ export default function ChatWindow({ client, onClose }: ChatWindowProps) {
             isMe: true,
         },
     ]);
-    const [socketinstance] = useState(socket());
+    const [messageText, setMessageText] = useState("");
+    const [socketConnection] = useState(() => socket());
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -49,26 +51,26 @@ export default function ChatWindow({ client, onClose }: ChatWindowProps) {
     };
 
     useEffect(() => {
-        socketinstance.on("vendas", (message: Message) => {
+        socketConnection.on("vendas", (message: Message) => {
             setMessages((prev) => [...prev, message]);
         });
         scrollToBottom();
     }, []);
 
     const handleSendMessage = () => {
-        if (socketInstance.trim() === "") return;
+        if (messageText.trim() === "") return;
 
 
         const message: Message = {
             id: messages.length + 1,
-            text: socketInstance,
+            text: messageText,
             sender: "Eu",
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             isMe: true,
         };
 
         setMessages([...messages, message]);
-        setsocketInstance("");
+        setMessageText("");
     };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -134,19 +136,19 @@ export default function ChatWindow({ client, onClose }: ChatWindowProps) {
                 <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 focus-within:ring-2 focus-within:ring-green-500/20 focus-within:border-green-500/30 transition-all">
                     <input
                         type="text"
-                        value={socketInstance}
-                        onChange={(e) => setsocketInstance(e.target.value)}
+                        value={messageText}
+                        onChange={(e) => setMessageText(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Mensagem..."
                         className="flex-1 bg-transparent border-none focus:ring-0 text-gray-700 placeholder-gray-400 text-sm px-2"
                     />
                     <button
                         onClick={handleSendMessage}
-                        className={`p-1.5 rounded-lg transition-all ${socketInstance.trim()
+                        className={`p-1.5 rounded-lg transition-all ${messageText.trim()
                             ? "bg-green-600 text-white shadow-md hover:bg-green-700"
                             : "text-gray-400"
                             }`}
-                        disabled={!socketInstance.trim()}
+                        disabled={!messageText.trim()}
                     >
                         <Send size={16} />
                     </button>
