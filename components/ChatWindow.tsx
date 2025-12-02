@@ -1,24 +1,11 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useContext } from "react";
 import { Send, Paperclip, Smile, Image as ImageIcon, MoreVertical, Phone, Video, X, Minimize2 } from "lucide-react";
-import { socket } from "@/app/socket";
-
-
-interface Message {
-    id: number;
-    text: string;
-    sender: string;
-    timestamp: string;
-    isMe: boolean;
-}
-
-interface Client {
-    id: number;
-    name: string;
-    status: string;
-    avatar: string;
-}
+import { getSocket } from "@/app/socket";
+import type { Client } from "@/app/models/Client";
+import type { Message } from "@/app/models/message";
+import { useMessageContext } from "@/app/providers/message/useMessageContext";
 
 interface ChatWindowProps {
     client: Client;
@@ -26,24 +13,10 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow({ client, onClose }: ChatWindowProps) {
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: 1,
-            text: "Olá! Tudo bem?",
-            sender: client.name,
-            timestamp: "10:00",
-            isMe: false,
-        },
-        {
-            id: 2,
-            text: "Oi! Tudo ótimo por aqui. E com você?",
-            sender: "Eu",
-            timestamp: "10:02",
-            isMe: true,
-        },
-    ]);
+    const { msgs, setMsgs } = useMessageContext();
+
     const [messageText, setMessageText] = useState("");
-    const [socketConnection] = useState(() => socket());
+    const socketConnection = getSocket();
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -51,31 +24,40 @@ export default function ChatWindow({ client, onClose }: ChatWindowProps) {
     };
 
     useEffect(() => {
-        socketConnection.on("vendas", (message: Message) => {
-            setMessages((prev) => [...prev, message]);
+        socketConnection.emit("join", client.id)
+        socketConnection.on("roomMessage", (message: Message) => {
+            setMsgs((prev) => [...prev, message]);
         });
         scrollToBottom();
-    }, []);
+        return () => {
 
-    const handleSendMessage = () => {
+            socketConnection.off("roomMessage");
+            socketConnection.emit("leave", client.id)
+        }
+    }, [client.id]);
+
+    const handleSendMessage = (roomId: number) => {
         if (messageText.trim() === "") return;
 
-
         const message: Message = {
-            id: messages.length + 1,
+            id: new Date().getTime(),
             text: messageText,
             sender: "Eu",
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             isMe: true,
         };
-
-        setMessages([...messages, message]);
+        console.log(roomId)
+        socketConnection.emit("sendMessage", {
+            roomId,
+            message
+        })
+        setMsgs([...msgs, message]);
         setMessageText("");
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, clientid: number) => {
         if (e.key === "Enter") {
-            handleSendMessage();
+            handleSendMessage(clientid);
         }
     };
 
@@ -105,9 +87,9 @@ export default function ChatWindow({ client, onClose }: ChatWindowProps) {
                 </div>
             </div>
 
-            {/* Messages Area */}
+            {/* msgs Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#f8fafc]">
-                {messages.map((msg) => (
+                {msgs.map((msg) => (
                     <div
                         key={msg.id}
                         className={`flex ${msg.isMe ? "justify-end" : "justify-start"}`}
@@ -138,12 +120,12 @@ export default function ChatWindow({ client, onClose }: ChatWindowProps) {
                         type="text"
                         value={messageText}
                         onChange={(e) => setMessageText(e.target.value)}
-                        onKeyDown={handleKeyDown}
+                        onKeyDown={(e) => handleKeyDown(e, client.id)}
                         placeholder="Mensagem..."
                         className="flex-1 bg-transparent border-none focus:ring-0 text-gray-700 placeholder-gray-400 text-sm px-2"
                     />
                     <button
-                        onClick={handleSendMessage}
+                        onClick={() => handleSendMessage(client.id)}
                         className={`p-1.5 rounded-lg transition-all ${messageText.trim()
                             ? "bg-green-600 text-white shadow-md hover:bg-green-700"
                             : "text-gray-400"
